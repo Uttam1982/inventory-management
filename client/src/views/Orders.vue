@@ -8,6 +8,51 @@
     <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else>
+      <!-- Submitted Restocking Orders -->
+      <div v-if="restockingOrders.length > 0" class="card restocking-section">
+        <div class="card-header">
+          <h3 class="card-title">Submitted Restocking Orders</h3>
+          <span class="restock-count">{{ restockingOrders.length }} order{{ restockingOrders.length !== 1 ? 's' : '' }}</span>
+        </div>
+        <div class="table-container">
+          <table class="restock-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Submitted</th>
+                <th>Items</th>
+                <th>Total Cost</th>
+                <th>Status</th>
+                <th>Est. Delivery</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in restockingOrders" :key="order.id">
+                <td><strong class="restock-id">{{ order.id }}</strong></td>
+                <td>{{ formatDate(order.order_date) }}</td>
+                <td>
+                  <details class="items-details">
+                    <summary class="items-summary">{{ order.items.length }} item{{ order.items.length !== 1 ? 's' : '' }}</summary>
+                    <div class="items-dropdown">
+                      <div v-for="item in order.items" :key="item.sku" class="item-entry">
+                        <span class="item-name">{{ item.name }}</span>
+                        <span class="item-meta">Qty: {{ item.quantity.toLocaleString() }} @ ${{ item.unit_cost.toFixed(2) }} — Lead time: {{ item.lead_time_days }} days</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+                <td><strong>${{ order.total_cost.toLocaleString() }}</strong></td>
+                <td><span class="badge warning">{{ order.status }}</span></td>
+                <td class="delivery-col">
+                  <span class="delivery-date">{{ formatDate(order.estimated_delivery) }}</span>
+                  <span class="lead-note">{{ maxLeadTime(order) }} day lead</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card success">
           <div class="stat-label">{{ t('status.delivered') }}</div>
@@ -95,6 +140,7 @@ export default {
     const loading = ref(true)
     const error = ref(null)
     const orders = ref([])
+    const restockingOrders = ref([])
 
     // Use shared filters
     const {
@@ -129,6 +175,16 @@ export default {
       loadOrders()
     })
 
+    const loadRestockingOrders = async () => {
+      try {
+        restockingOrders.value = await api.getRestockingOrders()
+      } catch (err) {
+        console.error('Failed to load restocking orders:', err)
+      }
+    }
+
+    const maxLeadTime = (order) => Math.max(...order.items.map(i => i.lead_time_days))
+
     const getOrdersByStatus = (status) => {
       return orders.value.filter(order => order.status === status)
     }
@@ -153,7 +209,10 @@ export default {
       })
     }
 
-    onMounted(loadOrders)
+    onMounted(() => {
+      loadOrders()
+      loadRestockingOrders()
+    })
 
     return {
       t,
@@ -165,7 +224,9 @@ export default {
       formatDate,
       currencySymbol,
       translateProductName,
-      translateCustomerName
+      translateCustomerName,
+      restockingOrders,
+      maxLeadTime
     }
   }
 }
@@ -274,6 +335,41 @@ export default {
 
 .item-meta {
   font-size: 0.813rem;
+  color: #64748b;
+}
+
+.restocking-section {
+  border-left: 3px solid #2563eb;
+}
+
+.restock-count {
+  font-size: 0.813rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.restock-id {
+  font-family: monospace;
+  color: #2563eb;
+}
+
+.restock-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.delivery-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.delivery-date {
+  font-weight: 500;
+}
+
+.lead-note {
+  font-size: 0.75rem;
   color: #64748b;
 }
 </style>
